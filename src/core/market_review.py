@@ -361,7 +361,7 @@ def run_market_review(
             elif send_notification and notifier.is_available():
                 # Send one market at a time, in fixed region order
                 markets_to_send = [m for m in _MARKET_REVIEW_REGION_ORDER if m in market_review_payloads]
-                send_kwargs: Dict[str, Any] = {"email_send_to_all": True, "route_type": report}
+                send_kwargs: Dict[str, Any] = {"email_send_to_all": True, "route_type": "report"}
                 try:
                     supports_payload = "structured_payload" in inspect.signature(notifier.send).parameters
                 except (TypeError, ValueError):
