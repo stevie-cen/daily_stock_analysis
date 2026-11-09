@@ -1985,11 +1985,11 @@ class TestTelegramSender(unittest.TestCase):
             self.assertLessEqual(len(sent_text), 4096)
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
-    def test_send_chunks_by_final_markdown_payload_length(self, mock_post):
+    def test_send_chunks_by_final_html_payload_length(self, mock_post):
         mock_post.return_value = _response(200, {"ok": True})
         cfg = _config(telegram_bot_token="BOT", telegram_chat_id="CHAT")
         sender = TelegramSender(cfg)
-        content = "(" * 4090
+        content = "(" * 5000
 
         result = sender.send_to_telegram(content)
 
@@ -1997,7 +1997,7 @@ class TestTelegramSender(unittest.TestCase):
         self.assertGreaterEqual(mock_post.call_count, 2)
         payload_texts = [call.kwargs["json"]["text"] for call in mock_post.call_args_list]
         self.assertTrue(all(len(text) <= 4096 for text in payload_texts))
-        self.assertEqual("".join(payload_texts), sender._convert_to_telegram_markdown(content))
+        self.assertEqual("".join(payload_texts), content)
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
     def test_send_chunks_by_utf16_length_for_emoji_content(self, mock_post):
