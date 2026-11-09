@@ -359,47 +359,36 @@ def run_market_review(
                     attempts=0,
                 )
             elif send_notification and notifier.is_available():
-                # 添加标题
-                report_content = _render_market_review_payload_markdown(
-                    market_review_payload,
-                    wrapper_title=review_text["push_title"],
-                )
-
-                send_kwargs: Dict[str, Any] = {
-                    "email_send_to_all": True,
-                    "route_type": "report",
-                }
+                # Send one market at a time, in fixed region order
+                markets_to_send = [m for m in _MARKET_REVIEW_REGION_ORDER if m in market_review_payloads]
+                send_kwargs: Dict[str, Any] = {"email_send_to_all": True, "route_type": report}
                 try:
-                    supports_payload = (
-                        "structured_payload" in inspect.signature(notifier.send).parameters
-                    )
+                    supports_payload = "structured_payload" in inspect.signature(notifier.send).parameters
                 except (TypeError, ValueError):
                     supports_payload = False
-                if supports_payload:
-                    send_kwargs["structured_payload"] = market_review_payload
-                success = notifier.send(report_content, **send_kwargs)
-                _record_market_review_notification_run(
-                    query_id=history_query_id,
-                    channel="report",
-                    status="success" if success else "failed",
-                    success=success,
-                )
-                if success:
-                    logger.info(
-                        "[MarketReview] component=market_review action=send_notification "
-                        "status=success trigger_source=%s query_id=%s region=%s",
-                        trigger_source,
-                        history_query_id,
-                        persist_region,
-                    )
-                else:
-                    logger.warning(
-                        "[MarketReview] component=market_review action=send_notification "
-                        "status=failed trigger_source=%s query_id=%s region=%s",
-                        trigger_source,
-                        history_query_id,
-                        persist_region,
-                    )
+                success = bool(markets_to_send)
+                for market in markets_to_send:
+                    market_payload = market_review_payloads[market]
+                    market_title = _get_market_review_market_heading(getattr(runtime_config, "report_language", "zh"), market)
+                    market_content = _render_single_market_review_payload(market_payload)
+                    first_line = market_content.splitlines()[0].strip() if market_content.strip() else ""
+                    if market_title and _normalize_market_review_heading(first_line) != _normalize_market_review_heading(market_title):
+                        report_content = f"# {market_title}\n\n{market_content}".strip()
+                    else:
+                        report_content = market_content
+                    if supports_payload:
+                        send_kwargs["structured_payload"] = market_payload
+                    try:
+                        market_success = notifier.send(report_content, **send_kwargs)
+                    except Exception:
+                        market_success = False
+                        logger.exception("[MarketReview] component=market_review action=send_notification status=failed trigger_source=%s query_id=%s region=%s", trigger_source, history_query_id, market)
+                    success = success and bool(market_success)
+                    if market_success:
+                        logger.info("[MarketReview] component=market_review action=send_notification status=success trigger_source=%s query_id=%s region=%s", trigger_source, history_query_id, market)
+                    else:
+                        logger.warning("[MarketReview] component=market_review action=send_notification status=failed trigger_source=%s query_id=%s region=%s", trigger_source, history_query_id, market)
+                _record_market_review_notification_run(query_id=history_query_id, channel="report", status="success" if success else "failed", success=success)
             elif not send_notification:
                 logger.info(
                     "[MarketReview] component=market_review action=skip_notification "
