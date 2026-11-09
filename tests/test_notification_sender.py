@@ -1885,12 +1885,12 @@ class TestTelegramSender(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         first_payload = mock_post.call_args_list[0][1]["json"]
         second_payload = mock_post.call_args_list[1][1]["json"]
-        self.assertEqual(first_payload["parse_mode"], "Markdown")
+        self.assertEqual(first_payload["parse_mode"], "HTML")
         self.assertNotIn("parse_mode", second_payload)
         self.assertEqual(second_payload["text"], "*ST宝实")
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
-    def test_send_plain_text_fallback_keeps_original_text_after_legacy_markdown_error(self, mock_post):
+    def test_send_plain_text_fallback_sends_sanitized_text_after_legacy_markdown_error(self, mock_post):
         markdown_error = _response(400)
         markdown_error.text = (
             '{"ok":false,"error_code":400,"description":"Bad Request: can\'t parse entities"}'
@@ -1906,8 +1906,8 @@ class TestTelegramSender(unittest.TestCase):
         self.assertTrue(result)
         first_payload = mock_post.call_args_list[0][1]["json"]
         second_payload = mock_post.call_args_list[1][1]["json"]
-        self.assertEqual(first_payload["text"], "关注 *AAPL* \\(未闭合\\)")
-        self.assertEqual(second_payload["text"], content)
+        self.assertEqual(first_payload["text"], "关注 <b>AAPL</b> (未闭合)")
+        self.assertEqual(second_payload["text"], "关注 AAPL (未闭合)")
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
     def test_send_uses_legacy_telegram_report_formatter(self, mock_post):
@@ -1928,10 +1928,10 @@ class TestTelegramSender(unittest.TestCase):
         self.assertTrue(result)
         payload = mock_post.call_args.kwargs["json"]
         rendered = payload["text"]
-        self.assertIn("日报", rendered)
-        self.assertIn("📊 分析结果摘要", rendered)
-        self.assertIn("| 股票 | 信号 |", rendered)
-        self.assertIn("[详情](https://example.com/report)", rendered)
+        self.assertIn("<b>日报</b>", rendered)
+        self.assertIn("<b>📊 分析结果摘要</b>", rendered)
+        self.assertIn("股票  信号", rendered)
+        self.assertIn('<a href="https://example.com/report">详情</a>', rendered)
         self.assertNotIn("# 日报", rendered)
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
